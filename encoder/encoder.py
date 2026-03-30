@@ -65,22 +65,64 @@ def detect(filepath):
     return bom_encoding
 
 
+def _python_convert(input_file, output_file, from_encoding, to_encoding):
+    """Pure Python implementation for encoding conversion"""
+    # Normalize encoding names for Python
+    encoding_map = {
+        'UTF-8': 'utf-8',
+        'UTF-16': 'utf-16',
+        'UTF-32': 'utf-32',
+        'UTF-16-LE': 'utf-16-le',
+        'UTF-16-BE': 'utf-16-be',
+        'UTF-32-LE': 'utf-32-le',
+        'UTF-32-BE': 'utf-32-be',
+    }
+    
+    from_enc = encoding_map.get(from_encoding, from_encoding.lower())
+    to_enc = encoding_map.get(to_encoding, to_encoding.lower())
+    
+    # Read file with source encoding
+    with open(input_file, 'r', encoding=from_enc) as f:
+        content = f.read()
+    
+    # Write file with target encoding
+    with open(output_file, 'w', encoding=to_enc) as f:
+        f.write(content)
+    
+    # Return a mock subprocess result
+    class MockResult:
+        def __init__(self):
+            self.returncode = 0
+    
+    return MockResult()
+
+
 def exec_convert(input_file, output_file, from_encoding: str, to_encoding: str) -> subprocess.CompletedProcess:
     from_encoding = from_encoding.strip().upper()
     to_encoding = to_encoding.strip().upper()
 
     if sys.platform == 'win32':
-        from_encoding = map_to_windows_encoding(from_encoding)
-        to_encoding = map_to_windows_encoding(to_encoding)
-        return subprocess.run(['pwsh', '-Command',
-                               f'Get-Content "{input_file}" -Encoding {from_encoding} | Set-Content "{output_file}" -Encoding {to_encoding}'],
-                              check=True)
+        # Try PowerShell first, fallback to Python implementation
+        try:
+            from_encoding_win = map_to_windows_encoding(from_encoding)
+            to_encoding_win = map_to_windows_encoding(to_encoding)
+            return subprocess.run(['powershell', '-Command',
+                                   f'Get-Content "{input_file}" -Encoding {from_encoding_win} | Set-Content "{output_file}" -Encoding {to_encoding_win}'],
+                                  check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback to Python implementation
+            return _python_convert(input_file, output_file, from_encoding, to_encoding)
     else:
-        return subprocess.run(['iconv',
-                               '--from-code', from_encoding,
-                               '--to-code', to_encoding,
-                               input_file,
-                               '--output', output_file], check=True)
+        # Try iconv first, fallback to Python implementation
+        try:
+            return subprocess.run(['iconv',
+                                   '--from-code', from_encoding.lower(),
+                                   '--to-code', to_encoding.lower(),
+                                   input_file,
+                                   '--output', output_file], check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback to Python implementation
+            return _python_convert(input_file, output_file, from_encoding, to_encoding)
 
 
 def convert(input_file, output_file, from_encoding, to_encoding):
