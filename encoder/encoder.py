@@ -111,28 +111,8 @@ def exec_convert(input_file, output_file, from_encoding: str, to_encoding: str) 
     from_encoding = from_encoding.strip().upper()
     to_encoding = to_encoding.strip().upper()
 
-    if sys.platform == 'win32':
-        # Try PowerShell first, fallback to Python implementation
-        try:
-            from_encoding_win = map_to_windows_encoding(from_encoding)
-            to_encoding_win = map_to_windows_encoding(to_encoding)
-            return subprocess.run(['powershell', '-Command',
-                                   f'Get-Content "{input_file}" -Encoding {from_encoding_win} | Set-Content "{output_file}" -Encoding {to_encoding_win}'],
-                                  check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            # Fallback to Python implementation
-            return _python_convert(input_file, output_file, from_encoding, to_encoding)
-    else:
-        # Try iconv first, fallback to Python implementation
-        try:
-            return subprocess.run(['iconv',
-                                   '--from-code', from_encoding.lower(),
-                                   '--to-code', to_encoding.lower(),
-                                   input_file,
-                                   '--output', output_file], check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            # Fallback to Python implementation
-            return _python_convert(input_file, output_file, from_encoding, to_encoding)
+    # Use Python implementation on all platforms to avoid BOM issues
+    return _python_convert(input_file, output_file, from_encoding, to_encoding)
 
 
 def convert(input_file, output_file, from_encoding, to_encoding):
