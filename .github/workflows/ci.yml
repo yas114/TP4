@@ -1,0 +1,72 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.11', '3.12']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+    
+    - name: Run tests
+      run: |
+        pytest test/ -v
+    
+    - name: Test CLI commands
+      run: |
+        python -m encoder list
+        echo "Hello World" > test_file.txt
+        python -m encoder detect test_file.txt
+        python -m encoder convert test_file.txt output.txt -f utf-8 -t utf-16
+    
+    - name: Test cross-platform encoding conversion
+      run: |
+        python -c "
+import tempfile
+import os
+from encoder import convert, detect
+
+# Test content with special characters
+test_content = 'Hello, World! éàü 中文 🚀'
+
+# Create test file
+with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', encoding='utf-8') as f:
+    f.write(test_content)
+    input_file = f.name
+
+try:
+    # Test UTF-8 to UTF-16 conversion
+    output_file = input_file.replace('.txt', '_utf16.txt')
+    success, msg = convert(input_file, output_file, 'utf-8', 'utf-16')
+    print(f'Conversion result: {success}, {msg}')
+    
+    if success:
+        # Verify detection works
+        detected = detect(output_file)
+        print(f'Detected encoding: {detected}')
+    
+finally:
+    # Cleanup
+    for f in [input_file, output_file]:
+        if os.path.exists(f):
+            os.unlink(f)
+"
