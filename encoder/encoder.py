@@ -67,51 +67,27 @@ def detect(filepath):
 
 def _python_convert(input_file, output_file, from_encoding, to_encoding):
     """Pure Python implementation for encoding conversion"""
-    # Read file as binary first to handle BOM properly
-    with open(input_file, 'rb') as f:
-        raw_data = f.read()
+    # Normalize encoding names for Python
+    encoding_map = {
+        'UTF-8': 'utf-8',
+        'UTF-16': 'utf-16',
+        'UTF-32': 'utf-32',
+        'UTF-16-LE': 'utf-16-le',
+        'UTF-16-BE': 'utf-16-be',
+        'UTF-32-LE': 'utf-32-le',
+        'UTF-32-BE': 'utf-32-be',
+    }
     
-    # Decode from source encoding
-    from_encoding = from_encoding.strip().upper()
-    if from_encoding == 'UTF-8':
-        content = raw_data.decode('utf-8-sig')  # Handles BOM automatically
-    elif from_encoding == 'UTF-16':
-        content = raw_data.decode('utf-16')
-    elif from_encoding == 'UTF-16-LE':
-        content = raw_data.decode('utf-16-le')
-    elif from_encoding == 'UTF-16-BE':
-        content = raw_data.decode('utf-16-be')
-    elif from_encoding == 'UTF-32':
-        content = raw_data.decode('utf-32')
-    elif from_encoding == 'UTF-32-LE':
-        content = raw_data.decode('utf-32-le')
-    elif from_encoding == 'UTF-32-BE':
-        content = raw_data.decode('utf-32-be')
-    else:
-        content = raw_data.decode('utf-8')
+    from_enc = encoding_map.get(from_encoding, from_encoding.lower())
+    to_enc = encoding_map.get(to_encoding, to_encoding.lower())
     
-    # Encode to target encoding
-    to_encoding = to_encoding.strip().upper()
-    if to_encoding == 'UTF-8':
-        encoded_data = content.encode('utf-8')  # No BOM
-    elif to_encoding == 'UTF-16':
-        encoded_data = content.encode('utf-16')
-    elif to_encoding == 'UTF-16-LE':
-        encoded_data = content.encode('utf-16-le')
-    elif to_encoding == 'UTF-16-BE':
-        encoded_data = content.encode('utf-16-be')
-    elif to_encoding == 'UTF-32':
-        encoded_data = content.encode('utf-32')
-    elif to_encoding == 'UTF-32-LE':
-        encoded_data = content.encode('utf-32-le')
-    elif to_encoding == 'UTF-32-BE':
-        encoded_data = content.encode('utf-32-be')
-    else:
-        encoded_data = content.encode('utf-8')
+    # Read file with source encoding
+    with open(input_file, 'r', encoding=from_enc) as f:
+        content = f.read()
     
-    # Write binary data to output file
-    with open(output_file, 'wb') as f:
-        f.write(encoded_data)
+    # Write file with target encoding
+    with open(output_file, 'w', encoding=to_enc) as f:
+        f.write(content)
     
     # Return a mock subprocess result
     class MockResult:
@@ -125,8 +101,28 @@ def exec_convert(input_file, output_file, from_encoding: str, to_encoding: str) 
     from_encoding = from_encoding.strip().upper()
     to_encoding = to_encoding.strip().upper()
 
-    # Use Python implementation on all platforms to avoid BOM issues
-    return _python_convert(input_file, output_file, from_encoding, to_encoding)
+    if sys.platform == 'win32':
+        # Try PowerShell first, fallback to Python implementation
+        try:
+            from_encoding_win = map_to_windows_encoding(from_encoding)
+            to_encoding_win = map_to_windows_encoding(to_encoding)
+            return subprocess.run(['powershell', '-Command',
+                                   f'Get-Content "{input_file}" -Encoding {from_encoding_win} | Set-Content "{output_file}" -Encoding {to_encoding_win}'],
+                                  check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback to Python implementation
+            return _python_convert(input_file, output_file, from_encoding, to_encoding)
+    else:
+        # Try iconv first, fallback to Python implementation
+        try:
+            return subprocess.run(['iconv',
+                                   '--from-code', from_encoding.lower(),
+                                   '--to-code', to_encoding.lower(),
+                                   input_file,
+                                   '--output', output_file], check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback to Python implementation
+            return _python_convert(input_file, output_file, from_encoding, to_encoding)
 
 
 def convert(input_file, output_file, from_encoding, to_encoding):
