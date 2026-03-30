@@ -67,37 +67,51 @@ def detect(filepath):
 
 def _python_convert(input_file, output_file, from_encoding, to_encoding):
     """Pure Python implementation for encoding conversion"""
-    # Normalize encoding names for Python
-    encoding_map = {
-        'UTF-8': 'utf-8',
-        'UTF-16': 'utf-16',
-        'UTF-32': 'utf-32',
-        'UTF-16-LE': 'utf-16-le',
-        'UTF-16-BE': 'utf-16-be',
-        'UTF-32-LE': 'utf-32-le',
-        'UTF-32-BE': 'utf-32-be',
-    }
+    # Read file as binary first to handle BOM properly
+    with open(input_file, 'rb') as f:
+        raw_data = f.read()
     
-    from_enc = encoding_map.get(from_encoding, from_encoding.lower())
-    to_enc = encoding_map.get(to_encoding, to_encoding.lower())
-    
-    # Read file with source encoding
-    with open(input_file, 'r', encoding=from_enc) as f:
-        content = f.read()
-    
-    # Remove BOM if present (fixes Windows PowerShell BOM issue)
-    if content.startswith('\ufeff'):
-        content = content[1:]
-    
-    # For UTF-8 output, ensure no BOM is added
-    if to_enc == 'utf-8':
-        write_encoding = 'utf-8'
+    # Decode from source encoding
+    from_encoding = from_encoding.strip().upper()
+    if from_encoding == 'UTF-8':
+        content = raw_data.decode('utf-8-sig')  # Handles BOM automatically
+    elif from_encoding == 'UTF-16':
+        content = raw_data.decode('utf-16')
+    elif from_encoding == 'UTF-16-LE':
+        content = raw_data.decode('utf-16-le')
+    elif from_encoding == 'UTF-16-BE':
+        content = raw_data.decode('utf-16-be')
+    elif from_encoding == 'UTF-32':
+        content = raw_data.decode('utf-32')
+    elif from_encoding == 'UTF-32-LE':
+        content = raw_data.decode('utf-32-le')
+    elif from_encoding == 'UTF-32-BE':
+        content = raw_data.decode('utf-32-be')
     else:
-        write_encoding = to_enc
+        content = raw_data.decode('utf-8')
     
-    # Write file with target encoding
-    with open(output_file, 'w', encoding=write_encoding) as f:
-        f.write(content)
+    # Encode to target encoding
+    to_encoding = to_encoding.strip().upper()
+    if to_encoding == 'UTF-8':
+        encoded_data = content.encode('utf-8')  # No BOM
+    elif to_encoding == 'UTF-16':
+        encoded_data = content.encode('utf-16')
+    elif to_encoding == 'UTF-16-LE':
+        encoded_data = content.encode('utf-16-le')
+    elif to_encoding == 'UTF-16-BE':
+        encoded_data = content.encode('utf-16-be')
+    elif to_encoding == 'UTF-32':
+        encoded_data = content.encode('utf-32')
+    elif to_encoding == 'UTF-32-LE':
+        encoded_data = content.encode('utf-32-le')
+    elif to_encoding == 'UTF-32-BE':
+        encoded_data = content.encode('utf-32-be')
+    else:
+        encoded_data = content.encode('utf-8')
+    
+    # Write binary data to output file
+    with open(output_file, 'wb') as f:
+        f.write(encoded_data)
     
     # Return a mock subprocess result
     class MockResult:
