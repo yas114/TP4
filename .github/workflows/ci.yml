@@ -40,33 +40,9 @@ jobs:
     
     - name: Test cross-platform encoding conversion
       run: |
-        python -c '
-import tempfile
-import os
-from encoder import convert, detect
-
-# Test content with basic characters (avoid unicode issues in YAML)
-test_content = "Hello, World! Test content"
-
-# Create test file
-with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt", encoding="utf-8") as f:
-    f.write(test_content)
-    input_file = f.name
-
-try:
-    # Test UTF-8 to UTF-16 conversion
-    output_file = input_file.replace(".txt", "_utf16.txt")
-    success, msg = convert(input_file, output_file, "utf-8", "utf-16")
-    print("Conversion result:", success, msg)
-    
-    if success:
-        # Verify detection works
-        detected = detect(output_file)
-        print("Detected encoding:", detected)
-    
-finally:
-    # Cleanup
-    for f in [input_file, output_file]:
-        if os.path.exists(f):
-            os.unlink(f)
-'
+        echo "Testing cross-platform encoding conversion..."
+        echo "Hello World Test" > test_input.txt
+        python -m encoder convert test_input.txt test_output_utf16.txt -f utf-8 -t utf-16
+        python -m encoder detect test_output_utf16.txt
+        python -m encoder convert test_output_utf16.txt test_output_back.txt -f utf-16 -t utf-8
+        echo "Cross-platform test completed"
