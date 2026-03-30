@@ -85,8 +85,18 @@ def _python_convert(input_file, output_file, from_encoding, to_encoding):
     with open(input_file, 'r', encoding=from_enc) as f:
         content = f.read()
     
+    # Remove BOM if present (fixes Windows PowerShell BOM issue)
+    if content.startswith('\ufeff'):
+        content = content[1:]
+    
+    # For UTF-8 output, ensure no BOM is added
+    if to_enc == 'utf-8':
+        write_encoding = 'utf-8'
+    else:
+        write_encoding = to_enc
+    
     # Write file with target encoding
-    with open(output_file, 'w', encoding=to_enc) as f:
+    with open(output_file, 'w', encoding=write_encoding) as f:
         f.write(content)
     
     # Return a mock subprocess result
